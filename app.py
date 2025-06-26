@@ -8,10 +8,30 @@ import json
 import pandas as pd
 from datetime import datetime
 from io import BytesIO
+import unicodedata
+import string
 
 # Configuração inicial
 st.set_page_config(layout="wide")
 st.title("☁️ Nuvens de Sonhos e Pesadelos")
+
+# Stopwords simples em português
+stopwords = {
+    "de", "do", "da", "das", "dos", "em", "e", "o", "a", "os", "as", "que",
+    "com", "por", "para", "no", "na", "nos", "nas", "um", "uma", "é", "ser",
+    "ao", "se", "são", "foi", "sou", "já", "ou", "mas", "me", "minha"
+}
+
+# Função para limpar e processar palavras
+def limpar_palavras(lista):
+    palavras_limpa = []
+    for palavra in lista:
+        palavra = palavra.lower()
+        palavra = unicodedata.normalize("NFKD", palavra).encode("ASCII", "ignore").decode("utf-8")
+        palavra = "".join(ch for ch in palavra if ch.isalpha())
+        if palavra and palavra not in stopwords:
+            palavras_limpa.append(palavra)
+    return palavras_limpa
 
 # Funções utilitárias
 def carregar_respostas(nome_arquivo):
@@ -45,13 +65,15 @@ with st.form("formulario"):
 # Processa entrada do usuário
 if enviado:
     if entrada_sonho:
-        sonhos.extend(entrada_sonho.split())
+        palavras_sonho = limpar_palavras(entrada_sonho.split())
+        sonhos.extend(palavras_sonho)
         salvar_respostas(ARQ_SONHOS, sonhos)
     if entrada_pesadelo:
-        pesadelos.extend(entrada_pesadelo.split())
+        palavras_pesadelo = limpar_palavras(entrada_pesadelo.split())
+        pesadelos.extend(palavras_pesadelo)
         salvar_respostas(ARQ_PESADELOS, pesadelos)
 
-    # Registro na planilha com hora
+    # Registro na planilha com hora (mantém texto original)
     nova_resposta = {
         "data_hora": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "sonho": entrada_sonho,
@@ -97,7 +119,7 @@ with col2:
 # Área restrita: Modo administrador
 with st.expander("🔐 Acesso restrito (admin)"):
     senha = st.text_input("Digite a senha para acessar funções administrativas:", type="password")
-    if senha == "minhasenha123":  # Altere sua senha aqui
+    if senha == "seplan123":  
         st.success("Acesso autorizado.")
 
         # Visualizar a planilha
@@ -134,3 +156,4 @@ with st.expander("🔐 Acesso restrito (admin)"):
                 st.warning("Nenhuma planilha para apagar.")
     elif senha != "":
         st.error("Senha incorreta.")
+
