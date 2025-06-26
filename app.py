@@ -5,6 +5,9 @@ from wordcloud import WordCloud
 import matplotlib.pyplot as plt
 import os
 import json
+import pandas as pd
+from datetime import datetime
+from io import BytesIO
 
 # Configuração inicial
 st.set_page_config(layout="wide")
@@ -24,6 +27,7 @@ def salvar_respostas(nome_arquivo, lista):
 # Arquivos de armazenamento
 ARQ_SONHOS = "sonhos.json"
 ARQ_PESADELOS = "pesadelos.json"
+ARQ_PLANILHA = "respostas.csv"
 
 # Carrega dados existentes
 sonhos = carregar_respostas(ARQ_SONHOS)
@@ -38,7 +42,7 @@ with st.form("formulario"):
         entrada_pesadelo = st.text_input("😨 Quais são seus pesadelos?")
     enviado = st.form_submit_button("Enviar")
 
-# Atualiza as listas
+# Processa entrada do usuário
 if enviado:
     if entrada_sonho:
         sonhos.extend(entrada_sonho.split())
@@ -46,6 +50,21 @@ if enviado:
     if entrada_pesadelo:
         pesadelos.extend(entrada_pesadelo.split())
         salvar_respostas(ARQ_PESADELOS, pesadelos)
+
+    # Registro na planilha com hora
+    nova_resposta = {
+        "data_hora": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "sonho": entrada_sonho,
+        "pesadelo": entrada_pesadelo
+    }
+
+    if os.path.exists(ARQ_PLANILHA):
+        df = pd.read_csv(ARQ_PLANILHA)
+        df = pd.concat([df, pd.DataFrame([nova_resposta])], ignore_index=True)
+    else:
+        df = pd.DataFrame([nova_resposta])
+    df.to_csv(ARQ_PLANILHA, index=False)
+
     st.success("Respostas registradas com sucesso!")
 
 # Gera e exibe as nuvens
@@ -78,11 +97,40 @@ with col2:
 # Área restrita: Modo administrador
 with st.expander("🔐 Acesso restrito (admin)"):
     senha = st.text_input("Digite a senha para acessar funções administrativas:", type="password")
-    if senha == "minhasenha123":  # 🔒 Altere aqui sua senha pessoal
+    if senha == "minhasenha123":  # Altere sua senha aqui
         st.success("Acesso autorizado.")
-        if st.button("🗑️ Limpar todas as respostas"):
+
+        # Visualizar a planilha
+        if os.path.exists(ARQ_PLANILHA):
+            df_download = pd.read_csv(ARQ_PLANILHA)
+            st.subheader("📋 Respostas registradas")
+            st.dataframe(df_download, use_container_width=True)
+
+            # Botão de download
+            buffer = BytesIO()
+            with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+                df_download.to_excel(writer, index=False, sheet_name='Respostas')
+            st.download_button(
+                label="⬇️ Baixar planilha de respostas (.xlsx)",
+                data=buffer.getvalue(),
+                file_name="respostas.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+        else:
+            st.info("Nenhuma resposta registrada ainda.")
+
+        # Limpar nuvens
+        if st.button("🗑️ Limpar todas as palavras"):
             salvar_respostas(ARQ_SONHOS, [])
             salvar_respostas(ARQ_PESADELOS, [])
             st.rerun()
+
+        # Resetar planilha
+        if st.button("🗑️ Resetar a planilha de respostas"):
+            if os.path.exists(ARQ_PLANILHA):
+                os.remove(ARQ_PLANILHA)
+                st.success("Planilha apagada com sucesso.")
+            else:
+                st.warning("Nenhuma planilha para apagar.")
     elif senha != "":
         st.error("Senha incorreta.")
