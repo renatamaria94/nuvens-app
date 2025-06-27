@@ -1,6 +1,6 @@
 streamlit
-pandas
-matplotlib
 wordcloud
-XlsxWriter
-
+matplotlib
+pandas
+xlsxwriter
+requests
