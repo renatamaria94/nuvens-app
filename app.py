@@ -56,7 +56,7 @@ sonhos = carregar_respostas(ARQ_SONHOS)
 pesadelos = carregar_respostas(ARQ_PESADELOS)
 
 # Entrada dos usuários
-with st.form("formulario"):
+with st.form("formulario_sonhos_pesadelos"):
     col1, col2 = st.columns(2)
     with col1:
         entrada_sonho = st.text_input("💭 Quais são seus sonhos?")
@@ -203,7 +203,7 @@ sonhos = carregar_respostas(ARQ_SONHOS)
 pesadelos = carregar_respostas(ARQ_PESADELOS)
 
 # Entrada dos usuários
-with st.form("formulario"):
+with st.form("formulario_sonhos_pesadelos"):
     col1, col2 = st.columns(2)
     with col1:
         entrada_sonho = st.text_input("💭 Quais são seus sonhos?")
