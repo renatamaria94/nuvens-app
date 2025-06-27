@@ -9,20 +9,20 @@ import pandas as pd
 from datetime import datetime
 from io import BytesIO
 import unicodedata
-import string
+import requests  # <- necessário para enviar ao sheet.best
 
-# Configuração inicial
+# CONFIGURAÇÃO INICIAL
 st.set_page_config(layout="wide")
 st.title("☁️ Nuvens de Sonhos e Pesadelos")
 
-# Stopwords simples em português
+# Stopwords simples
 stopwords = {
     "de", "do", "da", "das", "dos", "em", "e", "o", "a", "os", "as", "que",
     "com", "por", "para", "no", "na", "nos", "nas", "um", "uma", "é", "ser",
     "ao", "se", "são", "foi", "sou", "já", "ou", "mas", "me", "minha"
 }
 
-# Função para limpar e processar palavras
+# Limpeza de palavras
 def limpar_palavras(lista):
     palavras_limpa = []
     for palavra in lista:
@@ -33,7 +33,12 @@ def limpar_palavras(lista):
             palavras_limpa.append(palavra)
     return palavras_limpa
 
-# Funções utilitárias
+# Arquivos locais
+ARQ_SONHOS = "sonhos.json"
+ARQ_PESADELOS = "pesadelos.json"
+ARQ_PLANILHA = "respostas.csv"
+
+# Funções locais
 def carregar_respostas(nome_arquivo):
     if os.path.exists(nome_arquivo):
         with open(nome_arquivo, "r", encoding="utf-8") as f:
@@ -44,17 +49,13 @@ def salvar_respostas(nome_arquivo, lista):
     with open(nome_arquivo, "w", encoding="utf-8") as f:
         json.dump(lista, f)
 
-# Arquivos de armazenamento
-ARQ_SONHOS = "sonhos.json"
-ARQ_PESADELOS = "pesadelos.json"
-ARQ_PLANILHA = "respostas.csv"
-
-# Carrega dados existentes
+# Carrega palavras
 sonhos = carregar_respostas(ARQ_SONHOS)
 pesadelos = carregar_respostas(ARQ_PESADELOS)
 
-# Entrada dos usuários
-with st.form("formulario"):
+# Formulário
+st.subheader("📨 Compartilhe seus pensamentos")
+with st.form(key="formulario_completo_2025"):
     col1, col2 = st.columns(2)
     with col1:
         entrada_sonho = st.text_input("💭 Quais são seus sonhos?")
@@ -62,7 +63,7 @@ with st.form("formulario"):
         entrada_pesadelo = st.text_input("😨 Quais são seus pesadelos?")
     enviado = st.form_submit_button("Enviar")
 
-# Processa entrada do usuário
+# Processamento
 if enviado:
     if entrada_sonho:
         palavras_sonho = limpar_palavras(entrada_sonho.split())
@@ -73,13 +74,13 @@ if enviado:
         pesadelos.extend(palavras_pesadelo)
         salvar_respostas(ARQ_PESADELOS, pesadelos)
 
-    # Registro na planilha com hora (mantém texto original)
     nova_resposta = {
         "data_hora": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "sonho": entrada_sonho,
         "pesadelo": entrada_pesadelo
     }
 
+    # Atualiza CSV local
     if os.path.exists(ARQ_PLANILHA):
         df = pd.read_csv(ARQ_PLANILHA)
         df = pd.concat([df, pd.DataFrame([nova_resposta])], ignore_index=True)
@@ -87,11 +88,19 @@ if enviado:
         df = pd.DataFrame([nova_resposta])
     df.to_csv(ARQ_PLANILHA, index=False)
 
-    st.success("Respostas registradas com sucesso!")
+    # Envia para Sheet.best
+    url_sheetbest = "https://sheet.best/api/sheets/710efa5f-dc88-4da9-bbdd-decbf74edc99"  # <-- insira seu link aqui
+    try:
+        response = requests.post(url_sheetbest, json=nova_resposta)
+        if response.status_code == 200:
+            st.success("✅ Resposta registrada e enviada com sucesso!")
+        else:
+            st.warning("⚠️ Resposta salva localmente, mas falhou o envio para planilha.")
+    except:
+        st.warning("⚠️ Resposta salva localmente, mas ocorreu erro na conexão com a planilha.")
 
-# Gera e exibe as nuvens
+# Geração das nuvens
 col1, col2 = st.columns(2)
-
 with col1:
     st.subheader("🌈 Nuvem dos Sonhos")
     if sonhos:
@@ -116,38 +125,32 @@ with col2:
     else:
         st.info("Nenhum pesadelo enviado ainda.")
 
-# Área restrita: Modo administrador
+# Área de Administração
 with st.expander("🔐 Acesso restrito (admin)"):
     senha = st.text_input("Digite a senha para acessar funções administrativas:", type="password")
-    if senha == "seplan123":  
+    if senha == "seplan123":
         st.success("Acesso autorizado.")
 
-        # Visualizar a planilha
         if os.path.exists(ARQ_PLANILHA):
-            df_download = pd.read_csv(ARQ_PLANILHA)
+            df_admin = pd.read_csv(ARQ_PLANILHA)
             st.subheader("📋 Respostas registradas")
-            st.dataframe(df_download, use_container_width=True)
+            st.dataframe(df_admin, use_container_width=True)
 
-            # Botão de download
             buffer = BytesIO()
             with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-                df_download.to_excel(writer, index=False, sheet_name='Respostas')
+                df_admin.to_excel(writer, index=False, sheet_name='Respostas')
             st.download_button(
                 label="⬇️ Baixar planilha de respostas (.xlsx)",
                 data=buffer.getvalue(),
                 file_name="respostas.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
-        else:
-            st.info("Nenhuma resposta registrada ainda.")
 
-        # Limpar nuvens
         if st.button("🗑️ Limpar todas as palavras"):
             salvar_respostas(ARQ_SONHOS, [])
             salvar_respostas(ARQ_PESADELOS, [])
             st.rerun()
 
-        # Resetar planilha
         if st.button("🗑️ Resetar a planilha de respostas"):
             if os.path.exists(ARQ_PLANILHA):
                 os.remove(ARQ_PLANILHA)
