@@ -58,9 +58,9 @@ st.subheader("📨 Compartilhe seus pensamentos")
 with st.form(key="formulario_completo_2025"):
     col1, col2 = st.columns(2)
     with col1:
-        entrada_sonho = st.text_input("💭 Quais são seus sonhos?")
+        entrada_sonho = st.text_input("💭 Quais são seus sonhos para a SAS?")
     with col2:
-        entrada_pesadelo = st.text_input("😨 Quais são seus pesadelos?")
+        entrada_pesadelo = st.text_input("😨 Quais são seus pesadelos para a SAS?")
     enviado = st.form_submit_button("Enviar")
 
 # Processamento
