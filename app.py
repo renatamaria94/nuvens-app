@@ -1,5 +1,5 @@
-# isso para rodar:
-# python -m streamlit run app.py
+# Rodar com: python -m streamlit run app.py
+
 import streamlit as st
 from wordcloud import WordCloud
 import matplotlib.pyplot as plt
@@ -9,7 +9,7 @@ import pandas as pd
 from datetime import datetime
 from io import BytesIO
 import unicodedata
-import requests  # <- necessário para enviar ao sheet.best
+import requests
 
 # CONFIGURAÇÃO INICIAL
 st.set_page_config(layout="wide")
@@ -22,7 +22,7 @@ stopwords = {
     "ao", "se", "são", "foi", "sou", "já", "ou", "mas", "me", "minha"
 }
 
-# Limpeza de palavras
+# Função de limpeza
 def limpar_palavras(lista):
     palavras_limpa = []
     for palavra in lista:
@@ -33,27 +33,31 @@ def limpar_palavras(lista):
             palavras_limpa.append(palavra)
     return palavras_limpa
 
-# Arquivos locais
+# Arquivos
 ARQ_SONHOS = "sonhos.json"
 ARQ_PESADELOS = "pesadelos.json"
 ARQ_PLANILHA = "respostas.csv"
 
-# Funções locais
+# Função robusta para carregar JSON
 def carregar_respostas(nome_arquivo):
     if os.path.exists(nome_arquivo):
-        with open(nome_arquivo, "r", encoding="utf-8") as f:
-            return json.load(f)
+        try:
+            with open(nome_arquivo, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except json.JSONDecodeError:
+            with open(nome_arquivo, "r", encoding="utf-8") as f:
+                return [json.loads(linha) if linha.strip().startswith("{") else linha.strip() for linha in f if linha.strip()]
     return []
 
 def salvar_respostas(nome_arquivo, lista):
     with open(nome_arquivo, "w", encoding="utf-8") as f:
         json.dump(lista, f)
 
-# Carrega palavras
+# Carrega listas de palavras
 sonhos = carregar_respostas(ARQ_SONHOS)
 pesadelos = carregar_respostas(ARQ_PESADELOS)
 
-# Formulário
+# Formulário de envio
 st.subheader("📨 Compartilhe seus pensamentos")
 with st.form(key="formulario_completo_2025"):
     col1, col2 = st.columns(2)
@@ -63,7 +67,7 @@ with st.form(key="formulario_completo_2025"):
         entrada_pesadelo = st.text_input("😨 Quais são seus pesadelos para a SAS?")
     enviado = st.form_submit_button("Enviar")
 
-# Processamento
+# Processa envio
 if enviado:
     if entrada_sonho:
         palavras_sonho = limpar_palavras(entrada_sonho.split())
@@ -89,7 +93,7 @@ if enviado:
     df.to_csv(ARQ_PLANILHA, index=False)
 
     # Envia para Sheet.best
-    url_sheetbest = "https://sheet.best/api/sheets/710efa5f-dc88-4da9-bbdd-decbf74edc99"  # <-- insira seu link aqui
+    url_sheetbest = "https://sheet.best/api/sheets/710efa5f-dc88-4da9-bbdd-decbf74edc99"
     try:
         response = requests.post(url_sheetbest, json=nova_resposta)
         if response.status_code == 200:
@@ -99,7 +103,7 @@ if enviado:
     except:
         st.warning("⚠️ Resposta salva localmente, mas ocorreu erro na conexão com a planilha.")
 
-# Geração das nuvens
+# Nuvens de palavras
 col1, col2 = st.columns(2)
 with col1:
     st.subheader("🌈 Nuvem dos Sonhos")
@@ -125,7 +129,7 @@ with col2:
     else:
         st.info("Nenhum pesadelo enviado ainda.")
 
-# Área de Administração
+# Acesso administrativo
 with st.expander("🔐 Acesso restrito (admin)"):
     senha = st.text_input("Digite a senha para acessar funções administrativas:", type="password")
     if senha == "seplan123":
@@ -143,19 +147,4 @@ with st.expander("🔐 Acesso restrito (admin)"):
                 label="⬇️ Baixar planilha de respostas (.xlsx)",
                 data=buffer.getvalue(),
                 file_name="respostas.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
-
-        if st.button("🗑️ Limpar todas as palavras"):
-            salvar_respostas(ARQ_SONHOS, [])
-            salvar_respostas(ARQ_PESADELOS, [])
-            st.rerun()
-
-        if st.button("🗑️ Resetar a planilha de respostas"):
-            if os.path.exists(ARQ_PLANILHA):
-                os.remove(ARQ_PLANILHA)
-                st.success("Planilha apagada com sucesso.")
-            else:
-                st.warning("Nenhuma planilha para apagar.")
-    elif senha != "":
-        st.error("Senha incorreta.")
+                mime="application/vnd.openxmlformats-officedocument.sp
