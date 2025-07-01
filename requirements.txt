@@ -1,6 +1,8 @@
 streamlit
-wordcloud
-matplotlib
 pandas
-xlsxwriter
+matplotlib
+wordcloud
 requests
+openpyxl
+xlsxwriter
+filelock
