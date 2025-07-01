@@ -22,7 +22,7 @@ stopwords = {
     "ao", "se", "são", "foi", "sou", "já", "ou", "mas", "me", "minha"
 }
 
-# Função de limpeza
+# Função de limpeza de palavras
 def limpar_palavras(lista):
     palavras_limpa = []
     for palavra in lista:
@@ -33,7 +33,7 @@ def limpar_palavras(lista):
             palavras_limpa.append(palavra)
     return palavras_limpa
 
-# Arquivos
+# Caminhos dos arquivos
 ARQ_SONHOS = "sonhos.json"
 ARQ_PESADELOS = "pesadelos.json"
 ARQ_PLANILHA = "respostas.csv"
@@ -46,18 +46,19 @@ def carregar_respostas(nome_arquivo):
                 return json.load(f)
         except json.JSONDecodeError:
             with open(nome_arquivo, "r", encoding="utf-8") as f:
-                return [json.loads(linha) if linha.strip().startswith("{") else linha.strip() for linha in f if linha.strip()]
+                return [json.loads(linha) for linha in f if linha.strip()]
     return []
 
+# Função para salvar JSON
 def salvar_respostas(nome_arquivo, lista):
     with open(nome_arquivo, "w", encoding="utf-8") as f:
         json.dump(lista, f)
 
-# Carrega listas de palavras
+# Carregamento inicial
 sonhos = carregar_respostas(ARQ_SONHOS)
 pesadelos = carregar_respostas(ARQ_PESADELOS)
 
-# Formulário de envio
+# Formulário de entrada
 st.subheader("📨 Compartilhe seus pensamentos")
 with st.form(key="formulario_completo_2025"):
     col1, col2 = st.columns(2)
@@ -103,7 +104,7 @@ if enviado:
     except:
         st.warning("⚠️ Resposta salva localmente, mas ocorreu erro na conexão com a planilha.")
 
-# Nuvens de palavras
+# Geração das nuvens
 col1, col2 = st.columns(2)
 with col1:
     st.subheader("🌈 Nuvem dos Sonhos")
@@ -129,22 +130,46 @@ with col2:
     else:
         st.info("Nenhum pesadelo enviado ainda.")
 
-# Acesso administrativo
+# Área administrativa
 with st.expander("🔐 Acesso restrito (admin)"):
     senha = st.text_input("Digite a senha para acessar funções administrativas:", type="password")
     if senha == "seplan123":
         st.success("Acesso autorizado.")
 
+        # Visualizar planilha
         if os.path.exists(ARQ_PLANILHA):
             df_admin = pd.read_csv(ARQ_PLANILHA)
             st.subheader("📋 Respostas registradas")
             st.dataframe(df_admin, use_container_width=True)
 
+            # Baixar planilha Excel
             buffer = BytesIO()
-            with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-                df_admin.to_excel(writer, index=False, sheet_name='Respostas')
+            with pd.ExcelWriter(buffer, engine="xlsxwriter") as writer:
+                df_admin.to_excel(writer, index=False, sheet_name="Respostas")
             st.download_button(
                 label="⬇️ Baixar planilha de respostas (.xlsx)",
                 data=buffer.getvalue(),
                 file_name="respostas.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.sp
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+
+        # Botões de limpeza
+        if st.button("🗑️ Limpar todas as palavras"):
+            salvar_respostas(ARQ_SONHOS, [])
+            salvar_respostas(ARQ_PESADELOS, [])
+            st.success("Palavras removidas.")
+            st.rerun()
+
+        if st.button("🗑️ Resetar a planilha de respostas"):
+            if os.path.exists(ARQ_PLANILHA):
+                os.remove(ARQ_PLANILHA)
+                st.success("Planilha apagada com sucesso.")
+            else:
+                st.warning("Nenhuma planilha para apagar.")
+
+        if st.button("🧹 Resetar arquivos JSON manualmente"):
+            salvar_respostas(ARQ_SONHOS, [])
+            salvar_respostas(ARQ_PESADELOS, [])
+            st.success("Arquivos JSON resetados com sucesso.")
+    elif senha != "":
+        st.error("Senha incorreta.")
