@@ -12,7 +12,7 @@ import unicodedata
 import requests
 from filelock import FileLock
 
-# CONFIGURAÇÃO INICIAL
+# CONFIG
 st.set_page_config(layout="wide")
 st.title("☁️ Nuvens de Sonhos e Pesadelos")
 
@@ -36,20 +36,20 @@ def limpar_palavras(lista):
 # Arquivos
 ARQ_SONHOS = "sonhos.json"
 ARQ_PESADELOS = "pesadelos.json"
-ARQ_PLANILHA = "respostas.csv"
+ARQ_RESPOSTAS = "respostas.json"
 
-# Carregar com proteção
+# Leitura protegida
 def carregar_respostas(nome_arquivo):
     if os.path.exists(nome_arquivo):
         try:
             with open(nome_arquivo, "r", encoding="utf-8") as f:
                 return json.load(f)
         except json.JSONDecodeError:
-            salvar_respostas(nome_arquivo, [])  # limpa se estiver corrompido
+            salvar_respostas(nome_arquivo, [])
             return []
     return []
 
-# Salvar com bloqueio (proteção contra concorrência)
+# Escrita protegida
 def salvar_respostas(nome_arquivo, lista):
     lock = FileLock(nome_arquivo + ".lock")
     with lock:
@@ -59,6 +59,7 @@ def salvar_respostas(nome_arquivo, lista):
 # Carregamento inicial
 sonhos = carregar_respostas(ARQ_SONHOS)
 pesadelos = carregar_respostas(ARQ_PESADELOS)
+respostas = carregar_respostas(ARQ_RESPOSTAS)
 
 # Formulário
 st.subheader("📨 Compartilhe seus pensamentos")
@@ -86,24 +87,19 @@ if enviado:
         "pesadelo": entrada_pesadelo
     }
 
-    # CSV local
-    if os.path.exists(ARQ_PLANILHA):
-        df = pd.read_csv(ARQ_PLANILHA)
-        df = pd.concat([df, pd.DataFrame([nova_resposta])], ignore_index=True)
-    else:
-        df = pd.DataFrame([nova_resposta])
-    df.to_csv(ARQ_PLANILHA, index=False)
+    respostas.append(nova_resposta)
+    salvar_respostas(ARQ_RESPOSTAS, respostas)
 
-    # Sheet.best
+    # (Opcional) Envia para Sheet.best
     url_sheetbest = "https://sheet.best/api/sheets/710efa5f-dc88-4da9-bbdd-decbf74edc99"
     try:
-        response = requests.post(url_sheetbest, json=nova_resposta)
-        if response.status_code == 200:
+        r = requests.post(url_sheetbest, json=nova_resposta)
+        if r.status_code == 200:
             st.success("✅ Resposta registrada e enviada com sucesso!")
         else:
-            st.warning("⚠️ Salva localmente, mas falhou o envio para a planilha.")
+            st.warning("⚠️ Resposta salva localmente, mas falhou o envio à planilha.")
     except:
-        st.warning("⚠️ Salva localmente, mas ocorreu erro na conexão com a planilha.")
+        st.warning("⚠️ Resposta salva localmente, mas ocorreu erro de conexão.")
 
 # Nuvens de palavras
 col1, col2 = st.columns(2)
@@ -137,11 +133,12 @@ with st.expander("🔐 Acesso restrito (admin)"):
     if senha == "seplan123":
         st.success("Acesso autorizado.")
 
-        if os.path.exists(ARQ_PLANILHA):
-            df_admin = pd.read_csv(ARQ_PLANILHA)
+        if respostas:
+            df_admin = pd.DataFrame(respostas)
             st.subheader("📋 Respostas registradas")
             st.dataframe(df_admin, use_container_width=True)
 
+            # Download Excel
             buffer = BytesIO()
             with pd.ExcelWriter(buffer, engine="xlsxwriter") as writer:
                 df_admin.to_excel(writer, index=False, sheet_name="Respostas")
@@ -158,12 +155,10 @@ with st.expander("🔐 Acesso restrito (admin)"):
             st.success("Palavras removidas com sucesso.")
             st.rerun()
 
-        if st.button("🗑️ Resetar a planilha de respostas"):
-            if os.path.exists(ARQ_PLANILHA):
-                os.remove(ARQ_PLANILHA)
-                st.success("Planilha apagada com sucesso.")
-            else:
-                st.warning("Nenhuma planilha para apagar.")
+        if st.button("🧹 Resetar todas as respostas"):
+            salvar_respostas(ARQ_RESPOSTAS, [])
+            st.success("Respostas resetadas com sucesso.")
+            st.rerun()
 
     elif senha != "":
         st.error("Senha incorreta.")
