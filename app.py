@@ -10,6 +10,7 @@ from datetime import datetime
 from io import BytesIO
 import unicodedata
 import requests
+from filelock import FileLock
 
 # CONFIGURAÇÃO INICIAL
 st.set_page_config(layout="wide")
@@ -22,7 +23,6 @@ stopwords = {
     "ao", "se", "são", "foi", "sou", "já", "ou", "mas", "me", "minha"
 }
 
-# Função de limpeza de palavras
 def limpar_palavras(lista):
     palavras_limpa = []
     for palavra in lista:
@@ -33,32 +33,34 @@ def limpar_palavras(lista):
             palavras_limpa.append(palavra)
     return palavras_limpa
 
-# Caminhos dos arquivos
+# Arquivos
 ARQ_SONHOS = "sonhos.json"
 ARQ_PESADELOS = "pesadelos.json"
 ARQ_PLANILHA = "respostas.csv"
 
-# Função robusta para carregar JSON
+# Carregar com proteção
 def carregar_respostas(nome_arquivo):
     if os.path.exists(nome_arquivo):
         try:
             with open(nome_arquivo, "r", encoding="utf-8") as f:
                 return json.load(f)
         except json.JSONDecodeError:
-            with open(nome_arquivo, "r", encoding="utf-8") as f:
-                return [json.loads(linha) for linha in f if linha.strip()]
+            salvar_respostas(nome_arquivo, [])  # limpa se estiver corrompido
+            return []
     return []
 
-# Função para salvar JSON
+# Salvar com bloqueio (proteção contra concorrência)
 def salvar_respostas(nome_arquivo, lista):
-    with open(nome_arquivo, "w", encoding="utf-8") as f:
-        json.dump(lista, f)
+    lock = FileLock(nome_arquivo + ".lock")
+    with lock:
+        with open(nome_arquivo, "w", encoding="utf-8") as f:
+            json.dump(lista, f)
 
 # Carregamento inicial
 sonhos = carregar_respostas(ARQ_SONHOS)
 pesadelos = carregar_respostas(ARQ_PESADELOS)
 
-# Formulário de entrada
+# Formulário
 st.subheader("📨 Compartilhe seus pensamentos")
 with st.form(key="formulario_completo_2025"):
     col1, col2 = st.columns(2)
@@ -68,7 +70,6 @@ with st.form(key="formulario_completo_2025"):
         entrada_pesadelo = st.text_input("😨 Quais são seus pesadelos para a SAS?")
     enviado = st.form_submit_button("Enviar")
 
-# Processa envio
 if enviado:
     if entrada_sonho:
         palavras_sonho = limpar_palavras(entrada_sonho.split())
@@ -85,7 +86,7 @@ if enviado:
         "pesadelo": entrada_pesadelo
     }
 
-    # Atualiza CSV local
+    # CSV local
     if os.path.exists(ARQ_PLANILHA):
         df = pd.read_csv(ARQ_PLANILHA)
         df = pd.concat([df, pd.DataFrame([nova_resposta])], ignore_index=True)
@@ -93,18 +94,18 @@ if enviado:
         df = pd.DataFrame([nova_resposta])
     df.to_csv(ARQ_PLANILHA, index=False)
 
-    # Envia para Sheet.best
+    # Sheet.best
     url_sheetbest = "https://sheet.best/api/sheets/710efa5f-dc88-4da9-bbdd-decbf74edc99"
     try:
         response = requests.post(url_sheetbest, json=nova_resposta)
         if response.status_code == 200:
             st.success("✅ Resposta registrada e enviada com sucesso!")
         else:
-            st.warning("⚠️ Resposta salva localmente, mas falhou o envio para planilha.")
+            st.warning("⚠️ Salva localmente, mas falhou o envio para a planilha.")
     except:
-        st.warning("⚠️ Resposta salva localmente, mas ocorreu erro na conexão com a planilha.")
+        st.warning("⚠️ Salva localmente, mas ocorreu erro na conexão com a planilha.")
 
-# Geração das nuvens
+# Nuvens de palavras
 col1, col2 = st.columns(2)
 with col1:
     st.subheader("🌈 Nuvem dos Sonhos")
@@ -136,13 +137,11 @@ with st.expander("🔐 Acesso restrito (admin)"):
     if senha == "seplan123":
         st.success("Acesso autorizado.")
 
-        # Visualizar planilha
         if os.path.exists(ARQ_PLANILHA):
             df_admin = pd.read_csv(ARQ_PLANILHA)
             st.subheader("📋 Respostas registradas")
             st.dataframe(df_admin, use_container_width=True)
 
-            # Baixar planilha Excel
             buffer = BytesIO()
             with pd.ExcelWriter(buffer, engine="xlsxwriter") as writer:
                 df_admin.to_excel(writer, index=False, sheet_name="Respostas")
@@ -153,11 +152,10 @@ with st.expander("🔐 Acesso restrito (admin)"):
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
 
-        # Botões de limpeza
         if st.button("🗑️ Limpar todas as palavras"):
             salvar_respostas(ARQ_SONHOS, [])
             salvar_respostas(ARQ_PESADELOS, [])
-            st.success("Palavras removidas.")
+            st.success("Palavras removidas com sucesso.")
             st.rerun()
 
         if st.button("🗑️ Resetar a planilha de respostas"):
@@ -167,9 +165,5 @@ with st.expander("🔐 Acesso restrito (admin)"):
             else:
                 st.warning("Nenhuma planilha para apagar.")
 
-        if st.button("🧹 Resetar arquivos JSON manualmente"):
-            salvar_respostas(ARQ_SONHOS, [])
-            salvar_respostas(ARQ_PESADELOS, [])
-            st.success("Arquivos JSON resetados com sucesso.")
     elif senha != "":
         st.error("Senha incorreta.")
